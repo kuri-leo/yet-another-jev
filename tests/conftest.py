@@ -59,7 +59,7 @@ def anyio_backend():
 
 @pytest.fixture
 def dummy_openai_url() -> str:
-    return "http://test"
+    return "http://test/v1"
 
 
 @pytest.fixture
@@ -67,7 +67,7 @@ def make_llm_client():
     from yaj.client import LLMClient
 
     def _factory(
-        base_url: str = "http://test",
+        base_url: str = "http://test/v1",
         api_key: str = "fake",
         model: str = "test-model",
     ) -> LLMClient:

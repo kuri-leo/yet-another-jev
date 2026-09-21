@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import math
 
 from yaj.client import LLMClient
@@ -14,9 +15,15 @@ from yaj.models import (
 from yaj.prompt import option_labels
 from yaj.strategy.base import Strategy
 
+logger = logging.getLogger(__name__)
+
 
 class UnsupportedError(Exception):
     """Raised when logprob strategy cannot handle the question."""
+
+
+class LogprobExtractionError(Exception):
+    """Raised when expected tokens are missing from logprobs."""
 
 
 def _softmax(logprobs: dict[str, float]) -> dict[str, float]:
@@ -69,12 +76,21 @@ class LogprobStrategy(Strategy):
         )
 
         choice = response.choices[0]
-        top_logprobs_list = (
-            choice.logprobs.content[0].top_logprobs
-            if choice.logprobs and choice.logprobs.content
-            else []
-        )
+        if not choice.logprobs or not choice.logprobs.content:
+            raise LogprobExtractionError(
+                "LLM response contains no logprobs — the model or provider may not support logprobs"
+            )
+        top_logprobs_list = choice.logprobs.content[0].top_logprobs
+        if not top_logprobs_list:
+            raise LogprobExtractionError(
+                "LLM response has empty top_logprobs list"
+            )
         raw = {entry.token: entry.logprob for entry in top_logprobs_list}
+        logger.debug(
+            "logprob tokens for %s question: %s",
+            question.type.value,
+            {t: round(lp, 3) for t, lp in sorted(raw.items(), key=lambda x: -x[1])[:10]},
+        )
 
         if question.type == QuestionType.NOUL:
             return self._handle_noul(raw)
@@ -94,10 +110,18 @@ class LogprobStrategy(Strategy):
             for t, lp in raw.items()
             if t in _NO_TOKENS or t.strip().lower() in {"no", "n", "false"}
         ]
-        yes_lp = max(yes_lps, default=-100.0)
-        no_lp = max(no_lps, default=-100.0)
-        if yes_lp == -100.0 and no_lp == -100.0:
-            return NoulAnswer(noul=0.5)
+        yes_lp = max(yes_lps, default=None)
+        no_lp = max(no_lps, default=None)
+        if yes_lp is None and no_lp is None:
+            raise LogprobExtractionError(
+                f"No Yes/No tokens found in top_logprobs. "
+                f"Got tokens: {list(raw.keys())}"
+            )
+        # If only one side found, treat missing side as extremely unlikely
+        if yes_lp is None:
+            yes_lp = -100.0
+        if no_lp is None:
+            no_lp = -100.0
         probs = _softmax({"yes": yes_lp, "no": no_lp})
         return NoulAnswer(noul=probs["yes"])
 
@@ -107,12 +131,25 @@ class LogprobStrategy(Strategy):
         assert isinstance(question.criteria, dict)
         keys = list(question.criteria.keys())
         labels = option_labels(len(keys))
-        label_lps = {
-            label: raw.get(label, raw.get(f" {label}", -100.0))
-            for label in labels
-        }
+        label_lps = {}
+        for label in labels:
+            lp = raw.get(label, raw.get(f" {label}"))
+            if lp is None:
+                lp = raw.get(label.lower(), raw.get(f" {label.lower()}"))
+            if lp is not None:
+                label_lps[label] = lp
+        if not label_lps:
+            raise LogprobExtractionError(
+                f"No option tokens ({labels}) found in top_logprobs. "
+                f"Got tokens: {list(raw.keys())}"
+            )
         probs = _softmax(label_lps)
-        key_probs = {k: probs[l] for k, l in zip(keys, labels)}
+        # Map back to original keys (only for found labels)
+        found_keys = [k for k, l in zip(keys, labels) if l in label_lps]
+        key_probs = {k: probs[l] for k, l in zip(keys, labels) if l in label_lps}
+        # Normalize key_probs to sum to 1
+        total = sum(key_probs.values())
+        key_probs = {k: v / total for k, v in key_probs.items()}
         best_key = max(key_probs, key=lambda k: key_probs[k])
         return ChoiceAnswer(
             choice=best_key,
@@ -126,15 +163,25 @@ class LogprobStrategy(Strategy):
         assert isinstance(question.criteria, list)
         n_levels = len(question.criteria)
         digits = [str(i) for i in range(n_levels)]
-        digit_lps = {
-            d: raw.get(d, raw.get(f" {d}", -100.0))
-            for d in digits
-        }
+        digit_lps = {}
+        for d in digits:
+            lp = raw.get(d, raw.get(f" {d}"))
+            if lp is not None:
+                digit_lps[d] = lp
+        if not digit_lps:
+            raise LogprobExtractionError(
+                f"No score tokens ({digits}) found in top_logprobs. "
+                f"Got tokens: {list(raw.keys())}"
+            )
         probs = _softmax(digit_lps)
+        # Normalize over found digits only
+        total = sum(probs.values())
+        probs = {k: v / total for k, v in probs.items()}
         expected = sum(int(d) * p for d, p in probs.items())
-        str_probs = {d: probs[d] for d in digits}
+        legend = {str(i): label for i, label in enumerate(question.criteria)}
         return ScoreAnswer(
             score=expected,
-            probabilities=str_probs,
-            confidence=_confidence(str_probs),
+            legend=legend,
+            probabilities=probs,
+            confidence=_confidence(probs),
         )

@@ -72,7 +72,9 @@ class StructuredStrategy(Strategy):
                 raise StructuredOutputError(
                     f"Cannot parse score as float: {value!r}"
                 ) from err
-            return ScoreAnswer(score=score_val)
+            assert isinstance(question.criteria, list)
+            legend = {str(i): label for i, label in enumerate(question.criteria)}
+            return ScoreAnswer(score=score_val, legend=legend)
 
     def _json_hint(self, question: Question) -> str:
         if question.type == QuestionType.NOUL:

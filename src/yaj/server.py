@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
@@ -73,6 +74,7 @@ def create_app(strategy: Strategy, client: LLMClient) -> FastAPI:
                 raise RuntimeError(f"question '{key}': {exc}") from exc
             return key, answer
 
+        t0 = time.monotonic()
         try:
             tasks = [_solve(k) for k in request.questions]
             results = await asyncio.gather(*tasks)
@@ -95,12 +97,15 @@ def create_app(strategy: Strategy, client: LLMClient) -> FastAPI:
                 status_code=502,
                 content={"detail": f"upstream LLM error: {exc}"},
             )
+        duration_ms = round((time.monotonic() - t0) * 1000, 1)
 
         answers = dict(results)
+        usage = tracker.usage
+        usage.duration_ms = duration_ms
         return DecisionResponse(
             model=request.model,
             answers=answers,
-            usage=tracker.usage,
+            usage=usage,
         )
 
     return app

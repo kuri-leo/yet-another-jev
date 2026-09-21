@@ -39,6 +39,7 @@ class ChoiceAnswer(BaseModel):
 class ScoreAnswer(BaseModel):
     type: Literal["score"] = "score"
     score: float
+    legend: dict[str, str] | None = None
     probabilities: dict[str, float] | None = None
     confidence: float | None = None
 
@@ -52,6 +53,7 @@ Answer = Annotated[
 class Usage(BaseModel):
     input_tokens: int = 0
     output_tokens: int = 0
+    duration_ms: float | None = None
 
 
 class DecisionResponse(BaseModel):

@@ -12,8 +12,8 @@ from yaj.client import LLMClient
 @pytest.mark.asyncio
 async def test_client_complete_returns_response():
     transport = ASGITransport(app=dummy_app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
-        client = LLMClient(base_url="http://test", api_key="fake", model="test")
+    async with AsyncClient(transport=transport, base_url="http://test/v1") as http:
+        client = LLMClient(base_url="http://test/v1", api_key="fake", model="test")
         client._client._client = http  # inject test transport
         messages = [{"role": "user", "content": "hello"}]
         response = await client.complete(messages)
@@ -24,8 +24,8 @@ async def test_client_complete_returns_response():
 @pytest.mark.asyncio
 async def test_client_complete_with_logprobs():
     transport = ASGITransport(app=dummy_app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
-        client = LLMClient(base_url="http://test", api_key="fake", model="test")
+    async with AsyncClient(transport=transport, base_url="http://test/v1") as http:
+        client = LLMClient(base_url="http://test/v1", api_key="fake", model="test")
         client._client._client = http
         messages = [{"role": "user", "content": "hello"}]
         response = await client.complete(messages, logprobs=True, top_logprobs=2)
@@ -39,8 +39,8 @@ async def test_client_complete_with_logprobs():
 @pytest.mark.asyncio
 async def test_client_complete_with_json_object():
     transport = ASGITransport(app=dummy_app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
-        client = LLMClient(base_url="http://test", api_key="fake", model="test")
+    async with AsyncClient(transport=transport, base_url="http://test/v1") as http:
+        client = LLMClient(base_url="http://test/v1", api_key="fake", model="test")
         client._client._client = http
         messages = [{"role": "user", "content": "hello"}]
         response = await client.complete(
@@ -50,17 +50,17 @@ async def test_client_complete_with_json_object():
 
 
 def test_make_llm_client_fixture(make_llm_client, dummy_openai_url):
-    assert dummy_openai_url == "http://test"
+    assert dummy_openai_url == "http://test/v1"
     client = make_llm_client(base_url=dummy_openai_url, api_key="test-key", model="m")
     assert isinstance(client, LLMClient)
     assert client.model == "m"
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("url", ["http://test", "http://test/v1", "http://test/v1/"])
+@pytest.mark.parametrize("url", ["http://test/v1", "http://test/v1/"])
 async def test_client_base_url_variations(url):
     transport = ASGITransport(app=dummy_app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url="http://test/v1") as http:
         client = LLMClient(base_url=url, api_key="fake", model="test")
         client._client._client = http
         messages = [{"role": "user", "content": "hello"}]

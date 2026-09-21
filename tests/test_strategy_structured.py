@@ -47,8 +47,8 @@ async def test_noul_returns_binary():
     )
     msgs = build_messages("test", q)
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
-        client = LLMClient(base_url="http://test", api_key="fake", model="test")
+    async with AsyncClient(transport=transport, base_url="http://test/v1") as http:
+        client = LLMClient(base_url="http://test/v1", api_key="fake", model="test")
         client._client._client = http
         answer = await strategy.decide(client, msgs, q)
     assert isinstance(answer, NoulAnswer)
@@ -66,8 +66,8 @@ async def test_noul_returns_zero_on_false():
     )
     msgs = build_messages("test", q)
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
-        client = LLMClient(base_url="http://test", api_key="fake", model="test")
+    async with AsyncClient(transport=transport, base_url="http://test/v1") as http:
+        client = LLMClient(base_url="http://test/v1", api_key="fake", model="test")
         client._client._client = http
         answer = await strategy.decide(client, msgs, q)
     assert isinstance(answer, NoulAnswer)
@@ -85,8 +85,8 @@ async def test_choice_returns_key():
     )
     msgs = build_messages("test", q)
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
-        client = LLMClient(base_url="http://test", api_key="fake", model="test")
+    async with AsyncClient(transport=transport, base_url="http://test/v1") as http:
+        client = LLMClient(base_url="http://test/v1", api_key="fake", model="test")
         client._client._client = http
         answer = await strategy.decide(client, msgs, q)
     assert isinstance(answer, ChoiceAnswer)
@@ -106,8 +106,8 @@ async def test_score_returns_integer():
     )
     msgs = build_messages("test", q)
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
-        client = LLMClient(base_url="http://test", api_key="fake", model="test")
+    async with AsyncClient(transport=transport, base_url="http://test/v1") as http:
+        client = LLMClient(base_url="http://test/v1", api_key="fake", model="test")
         client._client._client = http
         answer = await strategy.decide(client, msgs, q)
     assert isinstance(answer, ScoreAnswer)
@@ -146,8 +146,8 @@ async def test_calls_llm_with_json_object_and_temp_zero():
     )
     msgs = [{"role": "user", "content": "Original message"}]
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
-        client = LLMClient(base_url="http://test", api_key="fake", model="test")
+    async with AsyncClient(transport=transport, base_url="http://test/v1") as http:
+        client = LLMClient(base_url="http://test/v1", api_key="fake", model="test")
         client._client._client = http
         await strategy.decide(client, msgs, q)
 
@@ -196,8 +196,8 @@ async def test_invalid_json_raises_structured_error():
     )
     msgs = build_messages("test", q)
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
-        client = LLMClient(base_url="http://test", api_key="fake", model="test")
+    async with AsyncClient(transport=transport, base_url="http://test/v1") as http:
+        client = LLMClient(base_url="http://test/v1", api_key="fake", model="test")
         client._client._client = http
         with pytest.raises(StructuredOutputError, match="Failed to parse JSON"):
             await strategy.decide(client, msgs, q)
@@ -214,8 +214,8 @@ async def test_missing_answer_field_raises_error():
     )
     msgs = build_messages("test", q)
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
-        client = LLMClient(base_url="http://test", api_key="fake", model="test")
+    async with AsyncClient(transport=transport, base_url="http://test/v1") as http:
+        client = LLMClient(base_url="http://test/v1", api_key="fake", model="test")
         client._client._client = http
         with pytest.raises(StructuredOutputError, match="missing 'answer' key"):
             await strategy.decide(client, msgs, q)
@@ -232,8 +232,8 @@ async def test_invalid_score_format_raises_error():
     )
     msgs = build_messages("test", q)
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
-        client = LLMClient(base_url="http://test", api_key="fake", model="test")
+    async with AsyncClient(transport=transport, base_url="http://test/v1") as http:
+        client = LLMClient(base_url="http://test/v1", api_key="fake", model="test")
         client._client._client = http
         with pytest.raises(StructuredOutputError, match="Cannot parse score"):
             await strategy.decide(client, msgs, q)

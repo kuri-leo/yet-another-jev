@@ -7,7 +7,7 @@ from httpx import ASGITransport, AsyncClient
 from yaj.client import LLMClient
 from yaj.models import ChoiceAnswer, NoulAnswer, Question, QuestionType, ScoreAnswer
 from yaj.prompt import build_messages
-from yaj.strategy import LogprobStrategy, Strategy, UnsupportedError
+from yaj.strategy import LogprobExtractionError, LogprobStrategy, Strategy, UnsupportedError
 
 
 def _make_logprob_app(token: str, prob: float, alternatives: dict[str, float]):
@@ -51,8 +51,8 @@ async def test_noul_extracts_probability():
     )
     msgs = build_messages("test state", q)
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
-        client = LLMClient(base_url="http://test", api_key="fake", model="test")
+    async with AsyncClient(transport=transport, base_url="http://test/v1") as http:
+        client = LLMClient(base_url="http://test/v1", api_key="fake", model="test")
         client._client._client = http
         answer = await strategy.decide(client, msgs, q)
     assert isinstance(answer, NoulAnswer)
@@ -70,8 +70,8 @@ async def test_choice_returns_argmax():
     )
     msgs = build_messages("test", q)
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
-        client = LLMClient(base_url="http://test", api_key="fake", model="test")
+    async with AsyncClient(transport=transport, base_url="http://test/v1") as http:
+        client = LLMClient(base_url="http://test/v1", api_key="fake", model="test")
         client._client._client = http
         answer = await strategy.decide(client, msgs, q)
     assert isinstance(answer, ChoiceAnswer)
@@ -103,8 +103,8 @@ async def test_score_returns_expected_value():
     )
     msgs = build_messages("test", q)
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
-        client = LLMClient(base_url="http://test", api_key="fake", model="test")
+    async with AsyncClient(transport=transport, base_url="http://test/v1") as http:
+        client = LLMClient(base_url="http://test/v1", api_key="fake", model="test")
         client._client._client = http
         answer = await strategy.decide(client, msgs, q)
     assert isinstance(answer, ScoreAnswer)
@@ -136,12 +136,11 @@ async def test_noul_fallback_when_both_missing():
     )
     msgs = build_messages("test state", q)
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
-        client = LLMClient(base_url="http://test", api_key="fake", model="test")
+    async with AsyncClient(transport=transport, base_url="http://test/v1") as http:
+        client = LLMClient(base_url="http://test/v1", api_key="fake", model="test")
         client._client._client = http
-        answer = await strategy.decide(client, msgs, q)
-    assert isinstance(answer, NoulAnswer)
-    assert answer.noul == 0.5
+        with pytest.raises(LogprobExtractionError, match="No Yes/No tokens found"):
+            await strategy.decide(client, msgs, q)
 
 
 @pytest.mark.asyncio
@@ -155,8 +154,8 @@ async def test_noul_case_insensitive_matching():
     )
     msgs = build_messages("test state", q)
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
-        client = LLMClient(base_url="http://test", api_key="fake", model="test")
+    async with AsyncClient(transport=transport, base_url="http://test/v1") as http:
+        client = LLMClient(base_url="http://test/v1", api_key="fake", model="test")
         client._client._client = http
         answer = await strategy.decide(client, msgs, q)
     assert isinstance(answer, NoulAnswer)
@@ -175,15 +174,16 @@ async def test_choice_missing_tokens_get_default_logprob():
     )
     msgs = build_messages("test", q)
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
-        client = LLMClient(base_url="http://test", api_key="fake", model="test")
+    async with AsyncClient(transport=transport, base_url="http://test/v1") as http:
+        client = LLMClient(base_url="http://test/v1", api_key="fake", model="test")
         client._client._client = http
         answer = await strategy.decide(client, msgs, q)
     assert isinstance(answer, ChoiceAnswer)
     assert answer.choice == "opt1"
     assert answer.probabilities is not None
-    assert answer.probabilities["opt1"] > 0.99
-    assert answer.probabilities["opt2"] < 1e-10
+    assert answer.probabilities["opt1"] == 1.0
+    assert "opt2" not in answer.probabilities
+    assert "opt3" not in answer.probabilities
 
 
 @pytest.mark.asyncio
@@ -226,8 +226,8 @@ async def test_calls_llm_with_max_tokens_1_and_logprob_params():
     )
     msgs = build_messages("test state", q)
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
-        client = LLMClient(base_url="http://test", api_key="fake", model="test")
+    async with AsyncClient(transport=transport, base_url="http://test/v1") as http:
+        client = LLMClient(base_url="http://test/v1", api_key="fake", model="test")
         client._client._client = http
         await strategy.decide(client, msgs, q)
 

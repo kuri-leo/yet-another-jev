@@ -70,8 +70,8 @@ def _make_dummy_llm():
 async def _make_yaj_client(strategy, dummy_llm):
     """Helper: wire up dummy LLM → LLMClient → yaj app → AsyncClient."""
     transport = ASGITransport(app=dummy_llm)
-    http = AsyncClient(transport=transport, base_url="http://llm")
-    client = LLMClient(base_url="http://llm", api_key="fake", model="test")
+    http = AsyncClient(transport=transport, base_url="http://llm/v1")
+    client = LLMClient(base_url="http://llm/v1", api_key="fake", model="test")
     client._client._client = http
     app = create_app(strategy, client)
     app_transport = ASGITransport(app=app)
