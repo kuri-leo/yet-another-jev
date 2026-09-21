@@ -216,3 +216,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+.agents
+.claude
+context
+skills-lock.json

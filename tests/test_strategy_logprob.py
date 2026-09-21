@@ -186,6 +186,59 @@ async def test_choice_missing_tokens_get_default_logprob():
     assert answer.probabilities["opt2"] < 1e-10
 
 
+@pytest.mark.asyncio
+async def test_calls_llm_with_max_tokens_1_and_logprob_params():
+    """LogprobStrategy must send max_tokens=1, logprobs=True, top_logprobs=20, temperature=0."""
+    captured_requests: list[dict] = []
+    app = FastAPI()
+
+    @app.post("/v1/chat/completions")
+    async def completions(request: Request):
+        body = await request.json()
+        captured_requests.append(body)
+        return JSONResponse({
+            "id": "test",
+            "object": "chat.completion",
+            "model": body.get("model", "test"),
+            "choices": [{
+                "index": 0,
+                "message": {"role": "assistant", "content": "Yes"},
+                "finish_reason": "stop",
+                "logprobs": {
+                    "content": [{
+                        "token": "Yes",
+                        "logprob": math.log(0.9),
+                        "top_logprobs": [
+                            {"token": "Yes", "logprob": math.log(0.9)},
+                            {"token": "No", "logprob": math.log(0.1)},
+                        ],
+                    }]
+                },
+            }],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 1, "total_tokens": 11},
+        })
+
+    strategy = LogprobStrategy()
+    q = Question(
+        type=QuestionType.NOUL,
+        instructions="Is urgent?",
+        criteria={"true": "yes", "false": "no"},
+    )
+    msgs = build_messages("test state", q)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as http:
+        client = LLMClient(base_url="http://test", api_key="fake", model="test")
+        client._client._client = http
+        await strategy.decide(client, msgs, q)
+
+    assert len(captured_requests) == 1
+    body = captured_requests[0]
+    assert body["max_tokens"] == 1
+    assert body["logprobs"] is True
+    assert body["top_logprobs"] == 20
+    assert body["temperature"] == 0
+
+
 def test_strategy_abc_cannot_instantiate():
     with pytest.raises(TypeError):
         Strategy()  # type: ignore
